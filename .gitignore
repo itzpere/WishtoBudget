@@ -46,5 +46,8 @@ data/
 *.db-shm
 *.db-wal
 
+# uploaded icons
+public/icons/
+
 # drizzle migrations (optional - you may want to commit these)
 # drizzle/

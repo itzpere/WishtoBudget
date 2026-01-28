@@ -331,13 +331,38 @@ export async function exportDatabase() {
   const allHistory = await db.select().from(history);
   const allSettings = await db.select().from(settings);
 
+  // Collect all local icon paths
+  const iconPaths = allItems
+    .filter(item => item.localIconPath)
+    .map(item => item.localIconPath as string);
+
+  // Read icon files as base64
+  const icons: Record<string, string> = {};
+  if (iconPaths.length > 0) {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      for (const iconPath of iconPaths) {
+        const fullPath = path.join(process.cwd(), 'public', iconPath);
+        if (fs.existsSync(fullPath)) {
+          const buffer = fs.readFileSync(fullPath);
+          icons[iconPath] = buffer.toString('base64');
+        }
+      }
+    } catch (error) {
+      console.error('Error reading icons:', error);
+    }
+  }
+
   const exportData = {
-    version: '1.0',
+    version: '1.1',
     exportDate: new Date().toISOString(),
     wishlists: allWishlists,
     items: allItems,
     history: allHistory,
     settings: allSettings,
+    icons,
   };
 
   return exportData;
@@ -376,6 +401,31 @@ export async function importDatabase(data: string) {
     // Import settings
     if (importData.settings && importData.settings.length > 0) {
       await db.insert(settings).values(importData.settings);
+    }
+
+    // Restore icons if they exist in the backup
+    if (importData.icons && Object.keys(importData.icons).length > 0) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const iconsDir = path.join(process.cwd(), 'public', 'icons');
+        
+        // Create icons directory if it doesn't exist
+        if (!fs.existsSync(iconsDir)) {
+          fs.mkdirSync(iconsDir, { recursive: true });
+        }
+
+        // Write each icon file
+        for (const [iconPath, base64Data] of Object.entries(importData.icons)) {
+          const fullPath = path.join(process.cwd(), 'public', iconPath);
+          const buffer = Buffer.from(base64Data as string, 'base64');
+          fs.writeFileSync(fullPath, buffer);
+        }
+      } catch (error) {
+        console.error('Error restoring icons:', error);
+        // Don't fail the entire import if icons fail
+      }
     }
 
     revalidatePath('/');

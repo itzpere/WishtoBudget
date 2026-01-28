@@ -12,10 +12,10 @@ type Item = {
   priority: number;
   status: 'pending' | 'purchased';
   imageUrl: string | null;
+  localIconPath?: string | null;
   link: string | null;
   wishlistId: number;
   createdAt: Date;
-  updatedAt: Date;
 };
 
 type WishlistClientWrapperProps = {

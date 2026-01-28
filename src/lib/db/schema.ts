@@ -46,5 +46,3 @@ export type History = typeof history.$inferSelect;
 export type NewHistory = typeof history.$inferInsert;
 export type Setting = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
-export type History = typeof history.$inferSelect;
-export type NewHistory = typeof history.$inferInsert;

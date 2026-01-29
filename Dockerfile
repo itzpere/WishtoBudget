@@ -4,7 +4,12 @@ FROM node:20.18-alpine AS base
 # Install dependencies only when needed
 FROM base AS deps
 # Add necessary libraries for native modules
-RUN apk add --no-cache libc6-compat python3 make g++
+# hadolint ignore=DL3018
+RUN apk add --no-cache \
+    libc6-compat \
+    python3 \
+    make \
+    g++
 WORKDIR /app
 
 # Copy only dependency files for better layer caching
@@ -15,7 +20,11 @@ RUN npm ci --omit=dev --ignore-scripts && \
 
 # Build stage with dev dependencies
 FROM base AS builder
-RUN apk add --no-cache python3 make g++
+# hadolint ignore=DL3018
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++
 WORKDIR /app
 
 # Copy package files and install all dependencies (including dev)

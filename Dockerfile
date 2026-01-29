@@ -64,6 +64,13 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/src ./src
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+# Copy entrypoint script
+COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/
+
+# Install drizzle-kit for migrations
+RUN npm install drizzle-kit --no-save
 
 # Create data directory with correct permissions
 RUN mkdir -p /app/data /app/public/icons && \
@@ -79,4 +86,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "docker-entrypoint.sh"]
 CMD ["node", "server.js"]

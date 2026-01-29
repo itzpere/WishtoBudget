@@ -21,6 +21,8 @@ services:
       - NODE_ENV=production
       # Add your environment variables here
       # - API_SECRET=${API_SECRET}
+    # Run as host user to avoid permission issues with volumes
+    user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
     # Resource limits for better resource management
     deploy:

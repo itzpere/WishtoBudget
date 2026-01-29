@@ -57,7 +57,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.confi
 
 # Create data directory with correct permissions
 RUN mkdir -p /app/data /app/public/icons && \
-    chown -R nextjs:nodejs /app/data /app/public/icons
+    chown -R nextjs:nodejs /app/data /app/public/icons && \
+    chmod -R 775 /app/data /app/public/icons
 
 # Switch to non-root user
 USER nextjs

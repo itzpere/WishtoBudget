@@ -6,7 +6,8 @@ FROM base AS builder
 WORKDIR /app
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     make \
     g++ \
@@ -46,7 +47,8 @@ ENV NODE_ENV=production \
     HOSTNAME="0.0.0.0"
 
 # Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends \
     dumb-init \
     sqlite3 \
     && rm -rf /var/lib/apt/lists/*

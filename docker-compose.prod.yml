@@ -1,12 +1,12 @@
 services:
-  budget-wishlist:
+  wishtobudget:
     build:
       context: .
       dockerfile: Dockerfile
       cache_from:
-        - budget-wishlist:latest
-    image: budget-wishlist:latest
-    container_name: budget-wishlist-prod
+        - wishtobudget:latest
+    image: wishtobudget:latest
+    container_name: wishtobudget-prod
     ports:
       - "3000:3000"
     volumes:

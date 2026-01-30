@@ -1,13 +1,13 @@
 services:
-  budget-wishlist:
+  wishtobudget:
     build:
       context: .
       dockerfile: Dockerfile
       # Enable BuildKit for faster builds
       cache_from:
-        - budget-wishlist:latest
-    image: budget-wishlist:latest
-    container_name: budget-wishlist
+        - wishtobudget:latest
+    image: wishtobudget:latest
+    container_name: wishtobudget
     ports:
       - "3000:3000"
     volumes:

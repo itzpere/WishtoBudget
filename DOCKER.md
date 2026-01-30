@@ -119,10 +119,10 @@ volumes:
 
 ```bash
 # Backup data volume
-docker run --rm -v budget-wishlist_budget-data:/data -v $(pwd):/backup alpine tar czf /backup/data-backup.tar.gz -C /data .
+docker run --rm -v wishtobudget_budget-data:/data -v $(pwd):/backup alpine tar czf /backup/data-backup.tar.gz -C /data .
 
 # Restore data volume
-docker run --rm -v budget-wishlist_budget-data:/data -v $(pwd):/backup alpine tar xzf /backup/data-backup.tar.gz -C /data
+docker run --rm -v wishtobudget_budget-data:/data -v $(pwd):/backup alpine tar xzf /backup/data-backup.tar.gz -C /data
 ```
 
 ## Maintenance Commands
@@ -138,13 +138,13 @@ docker-compose down --remove-orphans
 docker image prune -a
 
 # View resource usage
-docker stats budget-wishlist
+docker stats wishtobudget
 
 # Access container shell
-docker exec -it budget-wishlist sh
+docker exec -it wishtobudget sh
 
 # View health status
-docker inspect --format='{{.State.Health.Status}}' budget-wishlist
+docker inspect --format='{{.State.Health.Status}}' wishtobudget
 ```
 
 ## Troubleshooting
@@ -152,10 +152,10 @@ docker inspect --format='{{.State.Health.Status}}' budget-wishlist
 ### Container won't start
 ```bash
 # Check logs
-docker-compose logs -f budget-wishlist
+docker-compose logs -f wishtobudget
 
 # Check health
-docker inspect budget-wishlist
+docker inspect wishtobudget
 ```
 
 ### Permission issues with volumes
@@ -199,10 +199,10 @@ export COMPOSE_DOCKER_CLI_BUILD=1
 docker swarm init
 
 # Deploy stack
-docker stack deploy -c docker-compose.prod.yml budget-wishlist
+docker stack deploy -c docker-compose.prod.yml wishtobudget
 
 # Scale service
-docker service scale budget-wishlist_budget-wishlist=3
+docker service scale wishtobudget_wishtobudget=3
 ```
 
 ### Using Docker Compose (Simple)
@@ -222,10 +222,10 @@ Example GitHub Actions workflow:
 
 ```yaml
 - name: Build Docker image
-  run: docker build -t budget-wishlist:${{ github.sha }} .
+  run: docker build -t wishtobudget:${{ github.sha }} .
 
 - name: Run tests in container
-  run: docker run --rm budget-wishlist:${{ github.sha }} npm test
+  run: docker run --rm wishtobudget:${{ github.sha }} npm test
 ```
 
 ## Performance Tips

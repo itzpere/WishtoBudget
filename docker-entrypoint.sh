@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-echo "Starting Budget Wishlist application..."
+echo "Starting WishtoBudget application..."
 
 # Ensure data directory exists
 mkdir -p /app/data

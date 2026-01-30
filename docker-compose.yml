@@ -11,25 +11,14 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Persist SQLite database
-      - ./data:/app/data
-      # Persist uploaded icons
-      - ./public/icons:/app/public/icons
+      - budget-data:/app/data
+      - budget-icons:/app/public/icons
     environment:
       - NODE_ENV=production
       - DATA_DIR=/app/data
       # Add your environment variables here
       # - API_SECRET=${API_SECRET}
     restart: unless-stopped
-    # Resource limits for better resource management
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
     # Health check
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -48,3 +37,9 @@ services:
       - /app/.next/cache
     # Network mode for better isolation (optional)
     # network_mode: bridge
+
+volumes:
+  budget-data:
+    driver: local
+  budget-icons:
+    driver: local

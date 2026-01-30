@@ -1,33 +1,19 @@
 # Use specific version for reproducibility
 FROM node:20.18-alpine AS base
 
-# Install dependencies only when needed
-FROM base AS deps
-# Add necessary libraries for native modules
+# Build stage with all dependencies
+FROM base AS builder
+WORKDIR /app
+
+# Install build dependencies
 # hadolint ignore=DL3018
 RUN apk add --no-cache \
     libc6-compat \
     python3 \
     make \
     g++
-WORKDIR /app
 
-# Copy only dependency files for better layer caching
-COPY package.json package-lock.json* ./
-# Use npm ci for faster, more reliable installs
-RUN npm ci --omit=dev --ignore-scripts && \
-    npm cache clean --force
-
-# Build stage with dev dependencies
-FROM base AS builder
-# hadolint ignore=DL3018
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++
-WORKDIR /app
-
-# Copy package files and install all dependencies (including dev)
+# Copy package files and install dependencies
 COPY package.json package-lock.json* ./
 RUN npm ci
 
@@ -36,6 +22,10 @@ COPY . .
 
 # Generate Drizzle migrations
 RUN npm run db:generate
+
+# Compile migration script
+RUN npx tsx --tsconfig tsconfig.json migrate.ts > /dev/null 2>&1 || true
+RUN npx esbuild migrate.ts --bundle --platform=node --outfile=migrate.js --external:better-sqlite3
 
 # Disable telemetry during build
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -48,34 +38,37 @@ FROM base AS runner
 WORKDIR /app
 
 # Set production environment
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+# Install runtime dependencies only
+# hadolint ignore=DL3018
+RUN apk add --no-cache \
+    dumb-init \
+    sqlite
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy necessary files from builder
+# Create directories with proper permissions before copying files
+RUN mkdir -p /app/data /app/public/icons && \
+    chmod 777 /app/data /app/public/icons
+
+# Copy only necessary files from builder (standalone includes required node_modules)
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/src ./src
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
-COPY --from=builder --chown=nextjs:nodejs /app/drizzle.config.ts ./drizzle.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/migrate.js ./migrate.js
 
 # Copy entrypoint script
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/
 
-# Install drizzle-kit for migrations
-RUN npm install drizzle-kit --no-save
-
-# Create data directory with correct permissions
-RUN mkdir -p /app/data /app/public/icons && \
-    chown -R nextjs:nodejs /app && \
-    chmod -R 777 /app/data /app/public/icons
+# Set ownership for app directory
+RUN chown nextjs:nodejs /app
 
 # Switch to non-root user
 USER nextjs

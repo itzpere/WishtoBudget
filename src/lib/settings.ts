@@ -40,6 +40,16 @@ export async function setApiEnabled(enabled: boolean): Promise<void> {
   await setSetting('api_enabled', enabled ? 'true' : 'false');
 }
 
+export async function getSimulationPriceMode(): Promise<'min' | 'max' | 'average'> {
+  const value = await getSetting('simulation_price_mode', 'max');
+  if (value === 'min' || value === 'average') return value;
+  return 'max';
+}
+
+export async function setSimulationPriceMode(mode: 'min' | 'max' | 'average'): Promise<void> {
+  await setSetting('simulation_price_mode', mode);
+}
+
 export function formatCurrency(amount: number, currency: string): string {
   return `${currency}${amount.toFixed(2)}`;
 }

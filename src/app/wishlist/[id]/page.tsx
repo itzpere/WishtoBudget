@@ -12,7 +12,7 @@ import { SettingsDialog } from '@/components/settings-dialog';
 import { DeleteWishlistDialog } from '@/components/delete-wishlist-dialog';
 import { WishlistClientWrapper } from '@/components/wishlist-client-wrapper';
 import { extractIdFromSlug } from '@/lib/slug';
-import { getCurrency, getApiEnabled } from '@/lib/settings';
+import { getCurrency, getApiEnabled, getSimulationPriceMode } from '@/lib/settings';
 import { getApiSecret } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +57,7 @@ export default async function WishlistPage({ params }: { params: Promise<{ id: s
   const currency = await getCurrency();
   const apiEnabled = await getApiEnabled();
   const apiSecret = getApiSecret() || null;
+  const simulationPriceMode = await getSimulationPriceMode();
 
   if (!wishlist) {
     notFound();
@@ -99,7 +100,7 @@ export default async function WishlistPage({ params }: { params: Promise<{ id: s
                   <History className="h-5 w-5" />
                 </button>
               </HistoryDialog>
-              <SettingsDialog currentCurrency={currency} apiEnabled={apiEnabled} apiSecret={apiSecret}>
+              <SettingsDialog currentCurrency={currency} apiEnabled={apiEnabled} apiSecret={apiSecret} simulationPriceMode={simulationPriceMode}>
                 <button className="p-2 text-slate-600 hover:text-purple-400 transition-colors">
                   <Settings className="h-5 w-5" />
                 </button>
@@ -162,6 +163,7 @@ export default async function WishlistPage({ params }: { params: Promise<{ id: s
           currency={currency}
           wishlistName={wishlist.name}
           wishlistDescription={wishlist.description}
+          simulationPriceMode={simulationPriceMode}
         />
       )}
     </div>

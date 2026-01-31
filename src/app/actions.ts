@@ -5,8 +5,7 @@ import { wishlists, items, history, settings } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { setSetting } from '@/lib/settings';
-import { setApiEnabled } from '@/lib/settings';
+import { setSetting, setApiEnabled, setSimulationPriceMode } from '@/lib/settings';
 import fs from 'fs';
 import path from 'path';
 
@@ -38,10 +37,36 @@ export async function addItem(formData: FormData) {
   const wishlistId = parseInt(formData.get('wishlistId') as string);
   const name = formData.get('name') as string;
   const description = formData.get('description') as string | null;
-  const price = parseFloat(formData.get('price') as string);
+  const priceMode = (formData.get('priceMode') as 'fixed' | 'range') || 'fixed';
   const priority = parseInt(formData.get('priority') as string);
   const link = formData.get('link') as string | null;
   const imageUrl = formData.get('imageUrl') as string | null;
+  const additionalCosts = formData.get('additionalCosts') as string | null;
+
+  // Parse price based on mode
+  let price = 0;
+  let minPrice = null;
+  let maxPrice = null;
+
+  if (priceMode === 'fixed') {
+    price = parseFloat(formData.get('price') as string);
+  } else {
+    minPrice = parseFloat(formData.get('minPrice') as string);
+    maxPrice = parseFloat(formData.get('maxPrice') as string);
+    // For backwards compatibility, set price to max price
+    price = maxPrice;
+  }
+
+  // Calculate total with additional costs for history
+  let totalCost = price;
+  if (additionalCosts) {
+    try {
+      const costs = JSON.parse(additionalCosts);
+      totalCost += costs.reduce((sum: number, cost: { amount: number }) => sum + cost.amount, 0);
+    } catch (e) {
+      // If JSON parsing fails, ignore additional costs
+    }
+  }
 
   const [newItem] = await db
     .insert(items)
@@ -50,6 +75,10 @@ export async function addItem(formData: FormData) {
       name,
       description: description || null,
       price,
+      priceMode,
+      minPrice,
+      maxPrice,
+      additionalCosts,
       priority,
       status: 'pending',
       link: link || null,
@@ -62,10 +91,33 @@ export async function addItem(formData: FormData) {
     .from(wishlists)
     .where(eq(wishlists.id, wishlistId));
 
+  // Create detailed description for history
+  let priceDescription = '';
+  if (priceMode === 'fixed') {
+    priceDescription = `$${price.toFixed(2)}`;
+  } else {
+    priceDescription = `$${minPrice?.toFixed(2)} - $${maxPrice?.toFixed(2)}`;
+  }
+  if (additionalCosts) {
+    priceDescription += ` (total: $${totalCost.toFixed(2)})`;
+  }
+
+  const historyMetadata = {
+    itemId: newItem.id,
+    itemName: name,
+    priceMode,
+    basePrice: price,
+    minPrice,
+    maxPrice,
+    additionalCosts: additionalCosts ? JSON.parse(additionalCosts) : [],
+    totalCost,
+  };
+
   await db.insert(history).values({
     type: 'item_add',
-    amount: price,
-    description: `Added item "${name}" ($${price.toFixed(2)}) to wishlist "${wishlist.name}"`,
+    amount: totalCost,
+    description: `Added item "${name}" (${priceDescription}) to wishlist "${wishlist.name}"`,
+    metadata: JSON.stringify(historyMetadata),
   });
 
   revalidatePath('/');
@@ -121,7 +173,7 @@ export async function updateBudget(formData: FormData) {
   return updated;
 }
 
-export async function purchaseItem(itemId: number, deductFromBudget: boolean = false) {
+export async function purchaseItem(itemId: number, deductFromBudget: boolean = false, customAmount?: number) {
   const [item] = await db
     .select()
     .from(items)
@@ -131,9 +183,28 @@ export async function purchaseItem(itemId: number, deductFromBudget: boolean = f
     return item;
   }
 
+  // Calculate the amount to deduct
+  let amountToDeduct = customAmount !== undefined ? customAmount : item.price;
+  
+  // Add additional costs to the amount
+  if (item.additionalCosts) {
+    try {
+      const costs = JSON.parse(item.additionalCosts);
+      const additionalTotal = costs.reduce((sum: number, cost: { amount: number }) => sum + cost.amount, 0);
+      if (customAmount === undefined) {
+        amountToDeduct += additionalTotal;
+      }
+    } catch (e) {
+      // Ignore parsing errors
+    }
+  }
+
   const [updated] = await db
     .update(items)
-    .set({ status: 'purchased' })
+    .set({ 
+      status: 'purchased',
+      purchasedAmount: amountToDeduct,
+    })
     .where(eq(items.id, itemId))
     .returning();
 
@@ -142,9 +213,22 @@ export async function purchaseItem(itemId: number, deductFromBudget: boolean = f
     .from(wishlists)
     .where(eq(wishlists.id, item.wishlistId));
 
+  // Create detailed metadata
+  const historyMetadata = {
+    itemId,
+    itemName: item.name,
+    priceMode: item.priceMode,
+    basePrice: item.price,
+    minPrice: item.minPrice,
+    maxPrice: item.maxPrice,
+    additionalCosts: item.additionalCosts ? JSON.parse(item.additionalCosts) : [],
+    purchasedAmount: amountToDeduct,
+    deductedFromBudget: deductFromBudget,
+  };
+
   // If user chooses to deduct from budget, update the budget
   if (deductFromBudget) {
-    const newBudget = wishlist.budgetLimit - item.price;
+    const newBudget = wishlist.budgetLimit - amountToDeduct;
     await db
       .update(wishlists)
       .set({ budgetLimit: newBudget })
@@ -152,14 +236,16 @@ export async function purchaseItem(itemId: number, deductFromBudget: boolean = f
 
     await db.insert(history).values({
       type: 'purchase',
-      amount: item.price,
-      description: `Purchased "${item.name}" ($${item.price.toFixed(2)}) from wishlist "${wishlist.name}" and deducted from budget`,
+      amount: amountToDeduct,
+      description: `Purchased "${item.name}" ($${amountToDeduct.toFixed(2)}) from wishlist "${wishlist.name}" and deducted from budget`,
+      metadata: JSON.stringify(historyMetadata),
     });
   } else {
     await db.insert(history).values({
       type: 'purchase',
-      amount: item.price,
-      description: `Purchased "${item.name}" ($${item.price.toFixed(2)}) from wishlist "${wishlist.name}"`,
+      amount: amountToDeduct,
+      description: `Purchased "${item.name}" ($${amountToDeduct.toFixed(2)}) from wishlist "${wishlist.name}"`,
+      metadata: JSON.stringify(historyMetadata),
     });
   }
 
@@ -191,22 +277,41 @@ export async function unpurchaseItem(itemId: number, addBackToBudget: boolean = 
 
   // If user chooses to add back to budget, update the budget
   if (addBackToBudget) {
-    const newBudget = wishlist.budgetLimit + item.price;
+    // Use the purchasedAmount if available, otherwise use price
+    const amountToRefund = item.purchasedAmount || item.price;
+    const newBudget = wishlist.budgetLimit + amountToRefund;
     await db
       .update(wishlists)
       .set({ budgetLimit: newBudget })
       .where(eq(wishlists.id, item.wishlistId));
 
+    const historyMetadata = {
+      itemId,
+      itemName: item.name,
+      refundedAmount: amountToRefund,
+      addedBackToBudget: true,
+    };
+
     await db.insert(history).values({
       type: 'purchase',
-      amount: -item.price,
-      description: `Unpurchased "${item.name}" ($${item.price.toFixed(2)}) from wishlist "${wishlist.name}" and added back to budget`,
+      amount: -amountToRefund,
+      description: `Unpurchased "${item.name}" ($${amountToRefund.toFixed(2)}) from wishlist "${wishlist.name}" and added back to budget`,
+      metadata: JSON.stringify(historyMetadata),
     });
   } else {
+    const amountToRefund = item.purchasedAmount || item.price;
+    const historyMetadata = {
+      itemId,
+      itemName: item.name,
+      refundedAmount: amountToRefund,
+      addedBackToBudget: false,
+    };
+
     await db.insert(history).values({
       type: 'purchase',
-      amount: -item.price,
-      description: `Unpurchased "${item.name}" ($${item.price.toFixed(2)}) from wishlist "${wishlist.name}"`,
+      amount: -amountToRefund,
+      description: `Unpurchased "${item.name}" ($${amountToRefund.toFixed(2)}) from wishlist "${wishlist.name}"`,
+      metadata: JSON.stringify(historyMetadata),
     });
   }
 
@@ -219,10 +324,35 @@ export async function updateItem(formData: FormData) {
   const itemId = parseInt(formData.get('itemId') as string);
   const name = formData.get('name') as string;
   const description = formData.get('description') as string | null;
-  const price = parseFloat(formData.get('price') as string);
+  const priceMode = (formData.get('priceMode') as 'fixed' | 'range') || 'fixed';
   const priority = parseInt(formData.get('priority') as string);
   const link = formData.get('link') as string | null;
   const imageUrl = formData.get('imageUrl') as string | null;
+  const additionalCosts = formData.get('additionalCosts') as string | null;
+
+  // Parse price based on mode
+  let price = 0;
+  let minPrice = null;
+  let maxPrice = null;
+
+  if (priceMode === 'fixed') {
+    price = parseFloat(formData.get('price') as string);
+  } else {
+    minPrice = parseFloat(formData.get('minPrice') as string);
+    maxPrice = parseFloat(formData.get('maxPrice') as string);
+    price = maxPrice;
+  }
+
+  // Calculate total with additional costs for history
+  let totalCost = price;
+  if (additionalCosts) {
+    try {
+      const costs = JSON.parse(additionalCosts);
+      totalCost += costs.reduce((sum: number, cost: { amount: number }) => sum + cost.amount, 0);
+    } catch (e) {
+      // Ignore parsing errors
+    }
+  }
 
   const [oldItem] = await db
     .select()
@@ -235,6 +365,10 @@ export async function updateItem(formData: FormData) {
       name,
       description: description || null,
       price,
+      priceMode,
+      minPrice,
+      maxPrice,
+      additionalCosts,
       priority,
       link: link || null,
       imageUrl: imageUrl || null,
@@ -247,10 +381,33 @@ export async function updateItem(formData: FormData) {
     .from(wishlists)
     .where(eq(wishlists.id, oldItem.wishlistId));
 
+  // Create detailed description
+  let priceDescription = '';
+  if (priceMode === 'fixed') {
+    priceDescription = `$${price.toFixed(2)}`;
+  } else {
+    priceDescription = `$${minPrice?.toFixed(2)} - $${maxPrice?.toFixed(2)}`;
+  }
+  if (additionalCosts) {
+    priceDescription += ` (total: $${totalCost.toFixed(2)})`;
+  }
+
+  const historyMetadata = {
+    itemId,
+    itemName: name,
+    priceMode,
+    basePrice: price,
+    minPrice,
+    maxPrice,
+    additionalCosts: additionalCosts ? JSON.parse(additionalCosts) : [],
+    totalCost,
+  };
+
   await db.insert(history).values({
     type: 'item_update',
     amount: 0,
-    description: `Updated item "${oldItem.name}" to "${name}" ($${price.toFixed(2)}) in wishlist "${wishlist.name}"`,
+    description: `Updated item "${oldItem.name}" to "${name}" (${priceDescription}) in wishlist "${wishlist.name}"`,
+    metadata: JSON.stringify(historyMetadata),
   });
 
   revalidatePath('/');
@@ -290,9 +447,13 @@ export async function deleteItem(itemId: number) {
 export async function updateSettings(formData: FormData) {
   const currency = formData.get('currency') as string;
   const apiEnabled = formData.get('apiEnabled') === 'true';
+  const simulationPriceMode = formData.get('simulationPriceMode') as 'min' | 'max' | 'average';
   
   await setSetting('currency', currency);
   await setApiEnabled(apiEnabled);
+  if (simulationPriceMode) {
+    await setSimulationPriceMode(simulationPriceMode);
+  }
   
   revalidatePath('/');
 }

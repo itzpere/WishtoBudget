@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { ItemDetailsDialog } from './item-details-dialog';
+import { PriceBreakdownPopover } from './price-breakdown-popover';
 
 type BatteryItemCardProps = {
   item: {
@@ -10,6 +11,10 @@ type BatteryItemCardProps = {
     name: string;
     description?: string | null;
     price: number;
+    priceMode?: 'fixed' | 'range';
+    minPrice?: number | null;
+    maxPrice?: number | null;
+    additionalCosts?: string | null;
     status: 'pending' | 'purchased';
     priority: number;
     link?: string | null;
@@ -35,22 +40,52 @@ export function BatteryItemCard({
   const [localImageError, setLocalImageError] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   
+  // Calculate total costs including additional costs
+  const calculateTotalCost = (basePrice: number) => {
+    let total = basePrice;
+    if (item.additionalCosts) {
+      try {
+        const costs = JSON.parse(item.additionalCosts);
+        costs.forEach((cost: { name: string; amount: number }) => {
+          total += cost.amount;
+        });
+      } catch (e) {
+        // Invalid JSON, use base price only
+      }
+    }
+    return total;
+  };
+
+  const isRangeMode = item.priceMode === 'range';
+  const minTotal = isRangeMode ? calculateTotalCost(item.minPrice || item.price) : calculateTotalCost(item.price);
+  const maxTotal = isRangeMode ? calculateTotalCost(item.maxPrice || item.price) : calculateTotalCost(item.price);
+  
   // Calculate the "charge" percentage
-  let chargePercentage: number;
+  let minChargePercentage: number;
+  let maxChargePercentage: number;
   let isCompleted: boolean;
   
   if (item.status === 'purchased') {
     // Purchased items are always full
-    chargePercentage = 100;
+    minChargePercentage = 100;
+    maxChargePercentage = 100;
     isCompleted = true;
   } else if (isSimulationMode && isSelected) {
     // Selected items in simulation mode show as full (green) - "bought"
-    chargePercentage = 100;
+    minChargePercentage = 100;
+    maxChargePercentage = 100;
     isCompleted = true;
   } else {
     // Unselected items (or normal mode) calculate from available budget
-    chargePercentage = Math.min((wishlistSavings / item.price) * 100, 100);
-    isCompleted = chargePercentage >= 100;
+    if (isRangeMode) {
+      minChargePercentage = Math.min((wishlistSavings / minTotal) * 100, 100);
+      maxChargePercentage = Math.min((wishlistSavings / maxTotal) * 100, 100);
+      isCompleted = maxChargePercentage >= 100;
+    } else {
+      minChargePercentage = Math.min((wishlistSavings / minTotal) * 100, 100);
+      maxChargePercentage = minChargePercentage;
+      isCompleted = minChargePercentage >= 100;
+    }
   }
   
   const handleCardClick = () => {
@@ -96,11 +131,49 @@ export function BatteryItemCard({
           {isCompleted ? (
             // Full background fill when completed
             <div className="absolute inset-0 bg-green-300/80" />
+          ) : isRangeMode && !isSimulationMode ? (
+            // Dual-layer fill for range mode
+            <>
+              {/* Max price layer (gray background) */}
+              <div 
+                className="absolute bottom-0 left-0 right-0 overflow-hidden"
+                style={{ height: `${maxChargePercentage}%` }}
+              >
+                <svg
+                  className="absolute bottom-0 left-0 w-full h-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M0,100 L0,20 Q25,10 50,20 T100,20 L100,100 Z"
+                    fill="rgb(203 213 225)"
+                    className="animate-[wave-fill_3s_ease-in-out_infinite]"
+                  />
+                </svg>
+              </div>
+              {/* Min price layer (green foreground) */}
+              <div 
+                className="absolute bottom-0 left-0 right-0 overflow-hidden"
+                style={{ height: `${minChargePercentage}%` }}
+              >
+                <svg
+                  className="absolute bottom-0 left-0 w-full h-full"
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    d="M0,100 L0,20 Q25,10 50,20 T100,20 L100,100 Z"
+                    fill="rgb(134 239 172)"
+                    className="animate-[wave-fill_3s_ease-in-out_infinite]"
+                  />
+                </svg>
+              </div>
+            </>
           ) : (
-            // Wavy fill when charging
+            // Single wavy fill for fixed mode
             <div 
               className="absolute bottom-0 left-0 right-0 overflow-hidden"
-              style={{ height: `${chargePercentage}%` }}
+              style={{ height: `${minChargePercentage}%` }}
             >
               <svg
                 className="absolute bottom-0 left-0 w-full h-full"
@@ -152,14 +225,26 @@ export function BatteryItemCard({
           </div>
           
           {/* Price */}
-          <div className="bg-white/95 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm">
-            <p className={cn(
-              "text-lg font-bold z-10",
-              isCompleted ? "text-green-700" : "text-slate-700"
-            )}>
-              {currency}{item.price.toFixed(2)}
-            </p>
-          </div>
+          <PriceBreakdownPopover
+            priceMode={item.priceMode || 'fixed'}
+            price={item.price}
+            minPrice={item.minPrice}
+            maxPrice={item.maxPrice}
+            additionalCosts={item.additionalCosts}
+            currency={currency}
+          >
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl px-4 py-2 shadow-sm cursor-help">
+              <p className={cn(
+                "text-lg font-bold z-10",
+                isCompleted ? "text-green-700" : "text-slate-700"
+              )}>
+                {isRangeMode 
+                  ? `${currency}${minTotal.toFixed(2)} - ${currency}${maxTotal.toFixed(2)}`
+                  : `${currency}${minTotal.toFixed(2)}`
+                }
+              </p>
+            </div>
+          </PriceBreakdownPopover>
 
           
           {/* Glow Effect for Completed */}

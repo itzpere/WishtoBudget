@@ -9,7 +9,7 @@ import { SettingsDialog } from '@/components/settings-dialog';
 import { Plus, History, Home as HomeIcon, Settings } from 'lucide-react';
 import Link from 'next/link';
 import { generateSlug } from '@/lib/slug';
-import { getCurrency, getApiEnabled } from '@/lib/settings';
+import { getCurrency, getApiEnabled, getSimulationPriceMode } from '@/lib/settings';
 import { getApiSecret } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +45,7 @@ export default async function Home() {
   const currency = await getCurrency();
   const apiEnabled = await getApiEnabled();
   const apiSecret = getApiSecret() || null;
+  const simulationPriceMode = await getSimulationPriceMode();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -79,7 +80,7 @@ export default async function Home() {
                   <History className="h-5 w-5" />
                 </button>
               </HistoryDialog>
-              <SettingsDialog currentCurrency={currency} apiEnabled={apiEnabled} apiSecret={apiSecret}>
+              <SettingsDialog currentCurrency={currency} apiEnabled={apiEnabled} apiSecret={apiSecret} simulationPriceMode={simulationPriceMode}>
                 <button className="p-2 text-slate-600 hover:text-purple-400 transition-colors">
                   <Settings className="h-5 w-5" />
                 </button>

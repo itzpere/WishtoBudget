@@ -9,6 +9,10 @@ type Item = {
   name: string;
   description: string | null;
   price: number;
+  priceMode?: 'fixed' | 'range';
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  additionalCosts?: string | null;
   priority: number;
   status: 'pending' | 'purchased';
   imageUrl: string | null;
@@ -24,6 +28,7 @@ type WishlistClientWrapperProps = {
   currency: string;
   wishlistName: string;
   wishlistDescription: string | null;
+  simulationPriceMode?: 'min' | 'max' | 'average';
 };
 
 export function WishlistClientWrapper({ 
@@ -31,7 +36,8 @@ export function WishlistClientWrapper({
   wishlistSavings, 
   currency,
   wishlistName,
-  wishlistDescription
+  wishlistDescription,
+  simulationPriceMode = 'max'
 }: WishlistClientWrapperProps) {
   const [simulationData, setSimulationData] = useState<{
     isActive: boolean;
@@ -79,6 +85,7 @@ export function WishlistClientWrapper({
           items={items}
           wishlistSavings={wishlistSavings}
           currency={currency}
+          simulationPriceMode={simulationPriceMode}
           BudgetDisplayComponent={BudgetDisplay}
           onSimulationChange={setSimulationData}
         />

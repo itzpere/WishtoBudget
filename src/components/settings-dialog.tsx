@@ -22,14 +22,16 @@ type SettingsDialogProps = {
   currentCurrency: string;
   apiEnabled: boolean;
   apiSecret: string | null;
+  simulationPriceMode: 'min' | 'max' | 'average';
 };
 
-export function SettingsDialog({ children, currentCurrency, apiEnabled: initialApiEnabled, apiSecret }: SettingsDialogProps) {
+export function SettingsDialog({ children, currentCurrency, apiEnabled: initialApiEnabled, apiSecret, simulationPriceMode: initialSimulationPriceMode }: SettingsDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [currency, setCurrency] = useState(currentCurrency);
   const [customCurrency, setCustomCurrency] = useState('');
   const [apiEnabled, setApiEnabled] = useState(initialApiEnabled);
+  const [simulationPriceMode, setSimulationPriceMode] = useState<'min' | 'max' | 'average'>(initialSimulationPriceMode);
   const [showApiSecret, setShowApiSecret] = useState(false);
   const [copied, setCopied] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -42,12 +44,13 @@ export function SettingsDialog({ children, currentCurrency, apiEnabled: initialA
       setCurrency(currentCurrency);
       setCustomCurrency('');
       setApiEnabled(initialApiEnabled);
+      setSimulationPriceMode(initialSimulationPriceMode);
       setImportStatus(null);
       setCleanupStatus(null);
       setShowApiSecret(false);
       setCopied(false);
     }
-  }, [open, currentCurrency, initialApiEnabled]);
+  }, [open, currentCurrency, initialApiEnabled, initialSimulationPriceMode]);
 
   async function handleCleanup() {
     setCleaningUp(true);
@@ -85,6 +88,7 @@ export function SettingsDialog({ children, currentCurrency, apiEnabled: initialA
     const formData = new FormData();
     formData.append('currency', finalCurrency);
     formData.append('apiEnabled', apiEnabled.toString());
+    formData.append('simulationPriceMode', simulationPriceMode);
     
     await updateSettings(formData);
     
@@ -203,6 +207,53 @@ export function SettingsDialog({ children, currentCurrency, apiEnabled: initialA
             <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1">Preview Output</div>
             <div className="text-2xl font-bold text-purple-900">
               {customCurrency || currency}1,234.56
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200 pt-6 space-y-4">
+            <div>
+              <Label className="text-slate-700 font-medium mb-3 block">Simulation Price Mode</Label>
+              <p className="text-xs text-slate-500 mb-4">
+                When simulating purchases with price ranges, choose which price to use for budget calculations.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSimulationPriceMode('min')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
+                    simulationPriceMode === 'min'
+                      ? 'border-purple-400 bg-purple-50 text-purple-700 ring-2 ring-purple-100'
+                      : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <div className="font-bold text-sm">Min</div>
+                  <div className="text-[10px] text-slate-500 mt-1">Lowest</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSimulationPriceMode('max')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
+                    simulationPriceMode === 'max'
+                      ? 'border-purple-400 bg-purple-50 text-purple-700 ring-2 ring-purple-100'
+                      : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <div className="font-bold text-sm">Max</div>
+                  <div className="text-[10px] text-slate-500 mt-1">Highest</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSimulationPriceMode('average')}
+                  className={`px-4 py-3 rounded-lg border-2 transition-all text-center ${
+                    simulationPriceMode === 'average'
+                      ? 'border-purple-400 bg-purple-50 text-purple-700 ring-2 ring-purple-100'
+                      : 'border-slate-200 bg-white hover:border-purple-200 hover:bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  <div className="font-bold text-sm">Average</div>
+                  <div className="text-[10px] text-slate-500 mt-1">Middle</div>
+                </button>
+              </div>
             </div>
           </div>
 

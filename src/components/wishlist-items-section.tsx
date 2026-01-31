@@ -9,6 +9,10 @@ type Item = {
   name: string;
   description: string | null;
   price: number;
+  priceMode?: 'fixed' | 'range';
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  additionalCosts?: string | null;
   priority: number;
   status: 'pending' | 'purchased';
   imageUrl: string | null;
@@ -24,6 +28,7 @@ type WishlistItemsSectionProps = {
   items: Item[];
   wishlistSavings: number;
   currency: string;
+  simulationPriceMode?: 'min' | 'max' | 'average';
   BudgetDisplayComponent: React.ComponentType<{
     label: string;
     amount: number;
@@ -34,7 +39,7 @@ type WishlistItemsSectionProps = {
   onSimulationChange?: (data: { isActive: boolean; remainingBudget: number; isOverBudget: boolean }) => void;
 };
 
-export function WishlistItemsSection({ items, wishlistSavings, currency, BudgetDisplayComponent, onSimulationChange }: WishlistItemsSectionProps) {
+export function WishlistItemsSection({ items, wishlistSavings, currency, simulationPriceMode = 'max', BudgetDisplayComponent, onSimulationChange }: WishlistItemsSectionProps) {
   const [sortBy, setSortBy] = useState<SortOption>('priority');
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
@@ -42,10 +47,49 @@ export function WishlistItemsSection({ items, wishlistSavings, currency, BudgetD
   const pendingItems = items.filter(item => item.status === 'pending');
   const purchasedItems = items.filter(item => item.status === 'purchased');
 
+  // Helper function to calculate total cost including additional costs
+  const calculateItemCost = (item: Item) => {
+    const isRangeMode = item.priceMode === 'range';
+    let basePrice = item.price;
+    
+    // For range mode, use simulation setting to determine which price to use
+    if (isRangeMode) {
+      const minPrice = item.minPrice || item.price;
+      const maxPrice = item.maxPrice || item.price;
+      
+      switch (simulationPriceMode) {
+        case 'min':
+          basePrice = minPrice;
+          break;
+        case 'max':
+          basePrice = maxPrice;
+          break;
+        case 'average':
+          basePrice = (minPrice + maxPrice) / 2;
+          break;
+      }
+    }
+    
+    // Add additional costs
+    let totalCost = basePrice;
+    if (item.additionalCosts) {
+      try {
+        const costs = JSON.parse(item.additionalCosts);
+        costs.forEach((cost: { name: string; amount: number }) => {
+          totalCost += cost.amount;
+        });
+      } catch (e) {
+        // Invalid JSON, use base price only
+      }
+    }
+    
+    return totalCost;
+  };
+
   // Calculate simulated remaining budget
   const selectedItemsCost = Array.from(selectedItemIds).reduce((total, itemId) => {
     const item = pendingItems.find(i => i.id === itemId);
-    return total + (item?.price || 0);
+    return total + (item ? calculateItemCost(item) : 0);
   }, 0);
   const simulatedRemainingBudget = wishlistSavings - selectedItemsCost;
   const effectiveBudget = isSimulationMode ? simulatedRemainingBudget : wishlistSavings;

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { addItem } from '@/app/actions';
-import { Upload } from 'lucide-react';
+import { Upload, Plus, X } from 'lucide-react';
 
 type Wishlist = {
   id: number;
@@ -21,20 +21,34 @@ type AddItemDialogProps = {
   defaultWishlistId?: number;
 };
 
+type AdditionalCost = {
+  name: string;
+  amount: string;
+};
+
 export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddItemDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedWishlistId, setSelectedWishlistId] = useState('');
+  const [priceMode, setPriceMode] = useState<'fixed' | 'range'>('fixed');
   const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>([]);
+  const [showAdditionalCosts, setShowAdditionalCosts] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Set default wishlist when dialog opens
   useEffect(() => {
     if (open && defaultWishlistId && !selectedWishlistId) {
       setSelectedWishlistId(defaultWishlistId.toString());
+    }
+    if (!open) {
+      // Reset form when dialog closes
+      setPriceMode('fixed');
+      setAdditionalCosts([]);
+      setShowAdditionalCosts(false);
     }
   }, [open, defaultWishlistId, selectedWishlistId]);
 
@@ -52,6 +66,18 @@ export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddIte
     setLoading(true);
     
     const formData = new FormData(e.currentTarget);
+    
+    // Add price mode
+    formData.append('priceMode', priceMode);
+    
+    // Add additional costs as JSON
+    const validCosts = additionalCosts.filter(c => c.name && c.amount && parseFloat(c.amount) > 0);
+    if (validCosts.length > 0) {
+      formData.append('additionalCosts', JSON.stringify(
+        validCosts.map(c => ({ name: c.name, amount: parseFloat(c.amount) }))
+      ));
+    }
+    
     // Add imageUrl to formData
     if (imageUrl && !uploadedFile) {
       formData.append('imageUrl', imageUrl);
@@ -83,6 +109,9 @@ export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddIte
     setImageUrl('');
     setImagePreview('');
     setUploadedFile(null);
+    setPriceMode('fixed');
+    setAdditionalCosts([]);
+    setShowAdditionalCosts(false);
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -110,6 +139,20 @@ export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddIte
     } finally {
       setUploadingFile(false);
     }
+  }
+
+  function addAdditionalCost() {
+    setAdditionalCosts([...additionalCosts, { name: '', amount: '' }]);
+  }
+
+  function removeAdditionalCost(index: number) {
+    setAdditionalCosts(additionalCosts.filter((_, i) => i !== index));
+  }
+
+  function updateAdditionalCost(index: number, field: 'name' | 'amount', value: string) {
+    const updated = [...additionalCosts];
+    updated[index][field] = value;
+    setAdditionalCosts(updated);
   }
 
   return (
@@ -158,17 +201,48 @@ export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddIte
             </select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="itemName" className="text-slate-700 font-medium">Item Name</Label>
-              <Input
-                id="itemName"
-                name="name"
-                placeholder="e.g., Mechanical Keyboard"
-                className="border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
-                required
-              />
+          <div className="space-y-2">
+            <Label htmlFor="itemName" className="text-slate-700 font-medium">Item Name</Label>
+            <Input
+              id="itemName"
+              name="name"
+              placeholder="e.g., Mechanical Keyboard"
+              className="border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
+              required
+            />
+          </div>
+
+          {/* Price Mode Toggle */}
+          <div className="space-y-2">
+            <Label className="text-slate-700 font-medium">Price Type</Label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPriceMode('fixed')}
+                className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all font-medium ${
+                  priceMode === 'fixed'
+                    ? 'border-purple-400 bg-purple-50 text-purple-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-purple-200'
+                }`}
+              >
+                Fixed Price
+              </button>
+              <button
+                type="button"
+                onClick={() => setPriceMode('range')}
+                className={`flex-1 py-2 px-4 rounded-lg border-2 transition-all font-medium ${
+                  priceMode === 'range'
+                    ? 'border-purple-400 bg-purple-50 text-purple-700'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-purple-200'
+                }`}
+              >
+                Price Range
+              </button>
             </div>
+          </div>
+
+          {/* Price Inputs */}
+          {priceMode === 'fixed' ? (
             <div className="space-y-2">
               <Label htmlFor="price" className="text-slate-700 font-medium">Price</Label>
               <Input
@@ -182,6 +256,99 @@ export function AddItemDialog({ children, wishlists, defaultWishlistId }: AddIte
                 required
               />
             </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="minPrice" className="text-slate-700 font-medium">Min Price</Label>
+                <Input
+                  id="minPrice"
+                  name="minPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  className="border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="maxPrice" className="text-slate-700 font-medium">Max Price</Label>
+                <Input
+                  id="maxPrice"
+                  name="maxPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  className="border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Additional Costs Section */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-700 font-medium">Additional Costs (optional)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowAdditionalCosts(!showAdditionalCosts);
+                  if (!showAdditionalCosts && additionalCosts.length === 0) {
+                    addAdditionalCost();
+                  }
+                }}
+                className="text-xs"
+              >
+                {showAdditionalCosts ? 'Hide' : 'Add'}
+              </Button>
+            </div>
+            
+            {showAdditionalCosts && (
+              <div className="space-y-2 bg-slate-50 rounded-lg p-4 border border-slate-200">
+                {additionalCosts.map((cost, index) => (
+                  <div key={index} className="flex gap-2">
+                    <Input
+                      placeholder="Name (e.g., Tax)"
+                      value={cost.name}
+                      onChange={(e) => updateAdditionalCost(index, 'name', e.target.value)}
+                      className="flex-1 border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={cost.amount}
+                      onChange={(e) => updateAdditionalCost(index, 'amount', e.target.value)}
+                      className="w-24 border-slate-300 focus:border-purple-400 focus:ring-purple-400 placeholder:text-gray-500"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeAdditionalCost(index)}
+                      className="px-2"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addAdditionalCost}
+                  className="w-full text-xs"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Another Cost
+                </Button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">

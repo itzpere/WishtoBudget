@@ -15,6 +15,11 @@ export const items = sqliteTable('items', {
   name: text('name').notNull(),
   description: text('description'),
   price: real('price').notNull().default(0),
+  priceMode: text('price_mode', { enum: ['fixed', 'range'] }).notNull().default('fixed'),
+  minPrice: real('min_price'),
+  maxPrice: real('max_price'),
+  additionalCosts: text('additional_costs'),
+  purchasedAmount: real('purchased_amount'),
   status: text('status', { enum: ['pending', 'purchased'] }).notNull().default('pending'),
   priority: integer('priority').notNull().default(0),
   link: text('link'),
@@ -29,6 +34,7 @@ export const history = sqliteTable('history', {
   type: text('type', { enum: ['budget_change', 'item_add', 'item_update', 'item_delete', 'purchase'] }).notNull(),
   amount: real('amount'),
   description: text('description').notNull(),
+  metadata: text('metadata'),
 });
 
 export const settings = sqliteTable('settings', {

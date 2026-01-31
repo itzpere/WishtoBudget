@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { WishlistItemsSection } from '@/components/wishlist-items-section';
 import { BudgetDisplay } from '@/components/budget-display';
 
@@ -55,12 +55,12 @@ export function WishlistClientWrapper({
       <section className="container mx-auto px-6 py-12">
         <div className="flex flex-col md:flex-row items-start justify-between gap-8 md:gap-12">
           {/* Left Side - Wishlist Info */}
-          <div className="flex-1">
-            <h1 className="text-7xl md:text-8xl lg:text-9xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400 mb-4">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400 mb-4 wrap-break-word">
               {wishlistName}
             </h1>
             {wishlistDescription && (
-              <p className="text-xl text-slate-600 leading-relaxed">
+              <p className="text-xl text-slate-600 leading-relaxed wrap-break-word">
                 {wishlistDescription}
               </p>
             )}

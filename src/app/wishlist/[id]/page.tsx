@@ -3,8 +3,7 @@ import { wishlists, items } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Home as HomeIcon, Plus, History, Settings, Trash2 } from 'lucide-react';
-import { BatteryItemCard } from '@/components/battery-item-card';
+import { Home as HomeIcon, Plus, History, Settings, Trash2 } from 'lucide-react';
 import { AddItemDialog } from '@/components/add-item-dialog';
 import { UpdateBudgetDialog } from '@/components/update-budget-dialog';
 import { HistoryDialog } from '@/components/history-dialog';
@@ -121,12 +120,12 @@ export default async function WishlistPage({ params }: { params: Promise<{ id: s
           <section className="container mx-auto px-6 py-12">
             <div className="flex flex-col md:flex-row items-start justify-between gap-8 md:gap-12">
               {/* Left Side - Wishlist Info */}
-              <div className="flex-1">
-                <h1 className="text-7xl md:text-8xl lg:text-9xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400 mb-4">
+              <div className="flex-1 min-w-0">
+                <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400 mb-4 wrap-break-word">
                   {wishlist.name}
                 </h1>
                 {wishlist.description && (
-                  <p className="text-xl text-slate-600 leading-relaxed">
+                  <p className="text-xl text-slate-600 leading-relaxed wrap-break-word">
                     {wishlist.description}
                   </p>
                 )}

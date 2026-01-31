@@ -94,11 +94,11 @@ export default async function Home() {
       <section className="container mx-auto px-6 py-12">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
           {/* Left Side - Greeting */}
-          <div className="flex-1">
-            <h1 className="text-7xl md:text-8xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-indigo-400 wrap-break-word">
               Hello!
             </h1>
-            <p className="mt-4 text-xl text-slate-600">
+            <p className="mt-4 text-xl text-slate-600 wrap-break-word">
               Track your wishlists and watch your savings grow
             </p>
           </div>

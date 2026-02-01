@@ -1,3 +1,6 @@
+
+<img width="1122" height="480" alt="repository-open-graph-template" src="https://github.com/user-attachments/assets/af1cae80-2a7f-4809-8b65-16585a3f2899" />
+
 # WishtoBudget
 
 A self-hosted wishlist and budget management tool that helps you answer "Can I afford this?" at a glance. Organize purchases across multiple wishlists, set spending limits, and visualize affordability with battery-style indicators that show which items fit your budget.

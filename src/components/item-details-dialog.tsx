@@ -76,7 +76,7 @@ export function ItemDetailsDialog({
   // Affordability calculation
   const canAffordMin = wishlistSavings >= minTotal;
   const canAffordMax = wishlistSavings >= maxTotal;
-  const affordabilityPercentage = Math.min((wishlistSavings / minTotal) * 100, 100);
+  const affordabilityPercentage = Math.max(0, Math.min((wishlistSavings / minTotal) * 100, 100));
 
   const handleDeleteClick = () => {
     setDeleteDialogOpen(true);
@@ -87,6 +87,7 @@ export function ItemDetailsDialog({
   };
 
   const handlePurchaseClick = () => {
+    onOpenChange(false); // Close parent dialog to prevent stacking
     setPurchaseDialogOpen(true);
   };
 
@@ -109,7 +110,15 @@ export function ItemDetailsDialog({
                 <span className="inline-flex items-center gap-1.5 text-green-600 font-medium">
                   <Check className="h-4 w-4" />
                   Purchased
-                  {item.purchasedAmount && ` for ${currency}${item.purchasedAmount.toFixed(2)}`}
+                  {item.purchasedAmount && (
+                    <span className="text-sm">
+                      {item.purchasedAmount !== (item.price + totalAdditionalCosts) ? (
+                        <span className="font-semibold">(Custom: {currency}{item.purchasedAmount.toFixed(2)})</span>
+                      ) : (
+                        <span>for {currency}{item.purchasedAmount.toFixed(2)}</span>
+                      )}
+                    </span>
+                  )}
                 </span>
               ) : (
                 <span className="text-slate-500">Pending purchase</span>
@@ -315,7 +324,6 @@ export function ItemDetailsDialog({
                 <Button
                   onClick={handlePurchaseClick}
                   className="flex-1 bg-green-500 hover:bg-green-600 text-white"
-                  disabled={!canAffordMin}
                 >
                   <Check className="h-4 w-4 mr-2" />
                   Purchase

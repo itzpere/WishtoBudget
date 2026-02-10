@@ -144,7 +144,7 @@ export async function updateBudget(formData: FormData) {
       description = `Added $${amount.toFixed(2)} to "${oldWishlist.name}" budget (from $${oldWishlist.budgetLimit.toFixed(2)} to $${newBudget.toFixed(2)})`;
       break;
     case 'remove':
-      newBudget = Math.max(0, oldWishlist.budgetLimit - amount);
+      newBudget = oldWishlist.budgetLimit - amount;
       description = `Removed $${amount.toFixed(2)} from "${oldWishlist.name}" budget (from $${oldWishlist.budgetLimit.toFixed(2)} to $${newBudget.toFixed(2)})`;
       break;
     case 'overwrite':
@@ -153,6 +153,11 @@ export async function updateBudget(formData: FormData) {
       break;
     default:
       throw new Error('Invalid operation');
+  }
+
+  // Validate extreme values but allow negative budgets
+  if (newBudget < -1000000 || newBudget > 1000000) {
+    throw new Error('Budget value is too extreme');
   }
 
   const [updated] = await db

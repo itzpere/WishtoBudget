@@ -20,6 +20,7 @@ type BatteryItemCardProps = {
     link?: string | null;
     imageUrl?: string | null;
     localIconPath?: string | null;
+    purchasedAmount?: number | null;
   };
   wishlistSavings: number;
   currency: string;
@@ -78,11 +79,11 @@ export function BatteryItemCard({
   } else {
     // Unselected items (or normal mode) calculate from available budget
     if (isRangeMode) {
-      minChargePercentage = Math.min((wishlistSavings / minTotal) * 100, 100);
-      maxChargePercentage = Math.min((wishlistSavings / maxTotal) * 100, 100);
+      minChargePercentage = Math.max(0, Math.min((wishlistSavings / minTotal) * 100, 100));
+      maxChargePercentage = Math.max(0, Math.min((wishlistSavings / maxTotal) * 100, 100));
       isCompleted = maxChargePercentage >= 100;
     } else {
-      minChargePercentage = Math.min((wishlistSavings / minTotal) * 100, 100);
+      minChargePercentage = Math.max(0, Math.min((wishlistSavings / minTotal) * 100, 100));
       maxChargePercentage = minChargePercentage;
       isCompleted = minChargePercentage >= 100;
     }
@@ -255,8 +256,13 @@ export function BatteryItemCard({
         
         {/* Status Indicator */}
         {item.status === 'purchased' && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm text-green-700 text-sm font-bold px-4 py-1.5 rounded-full shadow-sm">
-            Purchased
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm text-green-700 font-bold px-4 py-1.5 rounded-full shadow-sm flex flex-col items-center gap-0.5">
+            <div className="text-sm">Purchased</div>
+            {item.purchasedAmount && item.purchasedAmount !== minTotal && (
+              <div className="text-xs font-normal text-green-600">
+                for {currency}{item.purchasedAmount.toFixed(2)}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -107,10 +107,10 @@ export default async function Home() {
           <div className="flex-1 flex justify-center md:justify-end">
             <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border-2 border-purple-200">
               <p className="text-sm font-medium text-slate-500 mb-2 uppercase tracking-wide">
-                Total Combined Budget
+                {totalBudget < 0 ? 'Total Budget Deficit' : 'Total Combined Budget'}
               </p>
-              <p className="text-6xl md:text-7xl font-bold text-purple-400">
-                {currency}{totalBudget.toFixed(2)}
+              <p className={`text-6xl md:text-7xl font-bold ${totalBudget < 0 ? 'text-red-500' : 'text-purple-400'}`}>
+                {totalBudget < 0 ? '-' : ''}{currency}{Math.abs(totalBudget).toFixed(2)}
               </p>
             </div>
           </div>

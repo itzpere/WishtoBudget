@@ -135,10 +135,10 @@ export default async function WishlistPage({ params }: { params: Promise<{ id: s
               <div className="flex-1 flex justify-center md:justify-end">
                 <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border-2 border-purple-200">
                   <p className="text-sm font-medium text-slate-500 mb-2 uppercase tracking-wide">
-                    Total Budget
+                    {wishlist.budgetLimit < 0 ? 'Budget Deficit' : 'Total Budget'}
                   </p>
-                  <p className="text-6xl md:text-7xl font-bold text-green-300">
-                    {currency}{wishlist.budgetLimit.toFixed(2)}
+                  <p className={`text-6xl md:text-7xl font-bold ${wishlist.budgetLimit < 0 ? 'text-red-500' : 'text-green-300'}`}>
+                    {wishlist.budgetLimit < 0 ? '-' : ''}{currency}{Math.abs(wishlist.budgetLimit).toFixed(2)}
                   </p>
                 </div>
               </div>

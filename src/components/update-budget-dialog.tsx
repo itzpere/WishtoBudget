@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { updateBudget } from '@/app/actions';
 import { Plus, Minus, Replace } from 'lucide-react';
+import { NegativeBudgetWarningDialog } from './negative-budget-warning-dialog';
 
 type Wishlist = {
   id: number;
@@ -26,6 +27,8 @@ export function UpdateBudgetDialog({ children, wishlists, defaultWishlistId, cur
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedWishlistId, setSelectedWishlistId] = useState('');
+  const [showNegativeWarning, setShowNegativeWarning] = useState(false);
+  const [pendingOperation, setPendingOperation] = useState<{ operation: 'add' | 'remove' | 'overwrite'; amount: number } | null>(null);
 
   // Set default wishlist when dialog opens
   useEffect(() => {
@@ -43,7 +46,37 @@ export function UpdateBudgetDialog({ children, wishlists, defaultWishlistId, cur
     if (!selectedWishlistId || !amount || amount <= 0) {
       return;
     }
-    
+
+    if (!selectedWishlist) {
+      return;
+    }
+
+    // Calculate resulting budget
+    let resultingBudget: number;
+    switch (operation) {
+      case 'add':
+        resultingBudget = selectedWishlist.budgetLimit + amount;
+        break;
+      case 'remove':
+        resultingBudget = selectedWishlist.budgetLimit - amount;
+        break;
+      case 'overwrite':
+        resultingBudget = amount;
+        break;
+    }
+
+    // Check if operation will result in negative budget
+    if (resultingBudget < 0) {
+      setPendingOperation({ operation, amount });
+      setShowNegativeWarning(true);
+      return;
+    }
+
+    // Execute operation directly if budget remains positive
+    await executeOperation(operation, amount);
+  }
+
+  async function executeOperation(operation: 'add' | 'remove' | 'overwrite', amount: number) {
     setLoading(true);
     
     const formData = new FormData();
@@ -58,11 +91,43 @@ export function UpdateBudgetDialog({ children, wishlists, defaultWishlistId, cur
     setSelectedWishlistId('');
   }
 
+  const calculateResultingBudget = () => {
+    if (!selectedWishlist || !pendingOperation) return 0;
+    
+    switch (pendingOperation.operation) {
+      case 'add':
+        return selectedWishlist.budgetLimit + pendingOperation.amount;
+      case 'remove':
+        return selectedWishlist.budgetLimit - pendingOperation.amount;
+      case 'overwrite':
+        return pendingOperation.amount;
+      default:
+        return selectedWishlist.budgetLimit;
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+    <>
+      <NegativeBudgetWarningDialog
+        open={showNegativeWarning}
+        onOpenChange={setShowNegativeWarning}
+        onConfirm={() => {
+          if (pendingOperation) {
+            executeOperation(pendingOperation.operation, pendingOperation.amount);
+            setPendingOperation(null);
+          }
+        }}
+        currentBudget={selectedWishlist?.budgetLimit || 0}
+        operationAmount={pendingOperation?.operation === 'remove' ? pendingOperation.amount : (pendingOperation?.operation === 'overwrite' ? Math.abs((selectedWishlist?.budgetLimit || 0) - (pendingOperation?.amount || 0)) : pendingOperation?.amount || 0)}
+        resultingBudget={calculateResultingBudget()}
+        currency={currency}
+        operationType="budget-update"
+      />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogTrigger asChild>
+          {children}
+        </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-slate-800">Update Budget</DialogTitle>
@@ -146,5 +211,6 @@ export function UpdateBudgetDialog({ children, wishlists, defaultWishlistId, cur
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

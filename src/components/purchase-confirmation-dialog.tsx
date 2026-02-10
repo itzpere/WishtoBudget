@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Check, DollarSign, AlertTriangle } from 'lucide-react';
+import { Check, AlertTriangle } from 'lucide-react';
+import { NegativeBudgetWarningDialog } from './negative-budget-warning-dialog';
 
 type AdditionalCost = {
   name: string;
@@ -38,8 +39,10 @@ export function PurchaseConfirmationDialog({
   onConfirm,
   loading,
 }: PurchaseConfirmationDialogProps) {
-  const [showCustomAmount, setShowCustomAmount] = useState(false);
+  const [deductionMode, setDeductionMode] = useState<'full' | 'custom' | 'none'>('full');
   const [customAmount, setCustomAmount] = useState('');
+  const [showNegativeWarning, setShowNegativeWarning] = useState(false);
+  const [pendingConfirmAction, setPendingConfirmAction] = useState<(() => void) | null>(null);
 
   // Parse additional costs
   const additionalCosts: AdditionalCost[] = item.additionalCosts
@@ -70,221 +73,305 @@ export function PurchaseConfirmationDialog({
   const hasEnoughForMin = availableBudget >= minTotal;
   const hasEnoughForMax = availableBudget >= maxTotal;
 
-  const handleConfirm = (deduct: boolean, useMin?: boolean, useMax?: boolean) => {
-    if (showCustomAmount && customAmount) {
+  const handleConfirm = () => {
+    let deductAmount: number | undefined;
+    let willDeduct = false;
+
+    if (deductionMode === 'full') {
+      willDeduct = true;
+      deductAmount = priceMode === 'range' ? minTotal : minTotal;
+    } else if (deductionMode === 'custom') {
       const amount = parseFloat(customAmount);
-      if (!isNaN(amount) && amount > 0) {
-        onConfirm(deduct, amount);
+      if (isNaN(amount) || amount <= 0) {
+        return; // Invalid custom amount
       }
-    } else if (useMin) {
-      onConfirm(deduct, minTotal);
-    } else if (useMax) {
-      onConfirm(deduct, maxTotal);
+      willDeduct = true;
+      deductAmount = amount;
     } else {
-      onConfirm(deduct);
+      // mode === 'none'
+      willDeduct = false;
+      deductAmount = undefined;
     }
+
+    // Check if this will result in negative budget
+    if (willDeduct && deductAmount !== undefined) {
+      const resultingBudget = availableBudget - deductAmount;
+      if (resultingBudget < 0) {
+        // Show warning dialog
+        setPendingConfirmAction(() => () => {
+          onConfirm(willDeduct, deductAmount);
+          setDeductionMode('full');
+          setCustomAmount('');
+        });
+        setShowNegativeWarning(true);
+        return;
+      }
+    }
+
+    // Proceed without warning
+    onConfirm(willDeduct, deductAmount);
+    setDeductionMode('full');
+    setCustomAmount('');
   };
 
+  const calculateDeductionAmount = () => {
+    if (deductionMode === 'full') {
+      return minTotal;
+    } else if (deductionMode === 'custom') {
+      const amount = parseFloat(customAmount);
+      return isNaN(amount) ? 0 : amount;
+    }
+    return 0;
+  };
+
+  const deductionAmount = calculateDeductionAmount();
+  const resultingBudget = availableBudget - deductionAmount;
+
   return (
-    <Dialog open={open} onOpenChange={(newOpen) => {
-      onOpenChange(newOpen);
-      if (!newOpen) {
-        setShowCustomAmount(false);
-        setCustomAmount('');
-      }
-    }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Check className="h-5 w-5 text-green-500" />
-            Purchase Item
-          </DialogTitle>
-          <DialogDescription>
-            Mark this item as purchased and optionally deduct from budget.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          {/* Price Breakdown */}
-          <div className="bg-slate-50 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-slate-600">Item:</span>
-              <span className="font-semibold text-slate-900">{item.name}</span>
-            </div>
-            
-            <div className="border-t border-slate-200 pt-2 space-y-1">
+    <>
+      <NegativeBudgetWarningDialog
+        open={showNegativeWarning}
+        onOpenChange={setShowNegativeWarning}
+        onConfirm={() => {
+          if (pendingConfirmAction) {
+            pendingConfirmAction();
+            setPendingConfirmAction(null);
+          }
+        }}
+        currentBudget={availableBudget}
+        operationAmount={deductionAmount}
+        resultingBudget={resultingBudget}
+        currency={currency}
+        operationType="purchase"
+      />
+
+      <Dialog open={open} onOpenChange={(newOpen) => {
+        onOpenChange(newOpen);
+        if (!newOpen) {
+          setDeductionMode('full');
+          setCustomAmount('');
+        }
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-green-500" />
+              Purchase Item
+            </DialogTitle>
+            <DialogDescription>
+              Mark this item as purchased and optionally deduct from budget.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Price Breakdown */}
+            <div className="bg-slate-50 rounded-lg p-4 space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Base Price:</span>
-                <span className="font-semibold text-slate-900">
-                  {priceMode === 'range'
-                    ? `${currency}${baseMin.toFixed(2)} - ${currency}${baseMax.toFixed(2)}`
-                    : `${currency}${item.price.toFixed(2)}`}
-                </span>
+                <span className="text-sm text-slate-600">Item:</span>
+                <span className="font-semibold text-slate-900">{item.name}</span>
               </div>
               
-              {additionalCosts.map((cost, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-xs text-slate-500">{cost.name}:</span>
-                  <span className="text-sm text-slate-700">
-                    +{currency}{cost.amount.toFixed(2)}
+              <div className="border-t border-slate-200 pt-2 space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-slate-600">Base Price:</span>
+                  <span className="font-semibold text-slate-900">
+                    {priceMode === 'range'
+                      ? `${currency}${baseMin.toFixed(2)} - ${currency}${baseMax.toFixed(2)}`
+                      : `${currency}${item.price.toFixed(2)}`}
                   </span>
                 </div>
-              ))}
-              
+                
+                {additionalCosts.map((cost, index) => (
+                  <div key={index} className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500">{cost.name}:</span>
+                    <span className="text-sm text-slate-700">
+                      +{currency}{cost.amount.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+                
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                  <span className="text-sm font-medium text-slate-700">Total:</span>
+                  <span className="font-bold text-lg text-purple-600">
+                    {priceMode === 'range'
+                      ? `${currency}${minTotal.toFixed(2)} - ${currency}${maxTotal.toFixed(2)}`
+                      : `${currency}${minTotal.toFixed(2)}`}
+                  </span>
+                </div>
+              </div>
+
               <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                <span className="text-sm font-medium text-slate-700">Total:</span>
-                <span className="font-bold text-lg text-purple-600">
-                  {priceMode === 'range'
-                    ? `${currency}${minTotal.toFixed(2)} - ${currency}${maxTotal.toFixed(2)}`
-                    : `${currency}${minTotal.toFixed(2)}`}
+                <span className="text-sm text-slate-600">Available Budget:</span>
+                <span className={`font-bold ${availableBudget >= 0 ? (hasEnoughForMax ? 'text-green-600' : hasEnoughForMin ? 'text-amber-600' : 'text-red-600') : 'text-red-600'}`}>
+                  {availableBudget >= 0 ? '' : '-'}{currency}{Math.abs(availableBudget).toFixed(2)}
                 </span>
               </div>
             </div>
-
-            <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-              <span className="text-sm text-slate-600">Available Budget:</span>
-              <span className={`font-bold ${hasEnoughForMax ? 'text-green-600' : hasEnoughForMin ? 'text-amber-600' : 'text-red-600'}`}>
-                {currency}{availableBudget.toFixed(2)}
-              </span>
-            </div>
-          </div>
-          
-          {!hasEnoughForMin && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-semibold text-red-900 mb-1">Insufficient Budget</p>
-                <p className="text-sm text-red-700">
-                  You don't have enough budget. Short by {currency}{(minTotal - availableBudget).toFixed(2)}.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {priceMode === 'range' && hasEnoughForMin && !hasEnoughForMax && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-800">
-                You can afford the minimum price but not the maximum.
-              </p>
-            </div>
-          )}
-
-          {/* Custom Amount Option */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => setShowCustomAmount(!showCustomAmount)}
-              className="text-sm text-purple-600 hover:text-purple-700 font-medium"
-            >
-              {showCustomAmount ? '← Back to preset amounts' : '💰 Enter custom amount'}
-            </button>
             
-            {showCustomAmount && (
-              <div className="space-y-2 bg-purple-50 rounded-lg p-3 border border-purple-200">
-                <Label htmlFor="customAmount" className="text-sm font-medium text-slate-700">
-                  Custom Amount
-                </Label>
-                <Input
-                  id="customAmount"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                  className="border-slate-300 focus:border-purple-400 focus:ring-purple-400"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="space-y-2">
-            <p className="text-xs text-slate-600 font-medium uppercase tracking-wide">
-              Deduct from Budget:
-            </p>
-            
-            {showCustomAmount ? (
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={() => handleConfirm(true)}
-                  disabled={loading || !customAmount || parseFloat(customAmount) <= 0}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Deduct {customAmount ? `${currency}${parseFloat(customAmount).toFixed(2)}` : 'Custom Amount'}
-                </Button>
-                <Button
-                  onClick={() => handleConfirm(false)}
-                  disabled={loading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Don't Deduct
-                </Button>
-              </div>
-            ) : priceMode === 'range' ? (
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={() => handleConfirm(true, true, false)}
-                  disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Deduct Min ({currency}{minTotal.toFixed(2)})
-                </Button>
-                <Button
-                  onClick={() => handleConfirm(true, false, true)}
-                  disabled={loading || !hasEnoughForMax}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Deduct Max ({currency}{maxTotal.toFixed(2)})
-                </Button>
-                <Button
-                  onClick={() => handleConfirm(false)}
-                  disabled={loading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Don't Deduct
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={() => handleConfirm(true)}
-                  disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-600 text-white"
-                >
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Deduct {currency}{minTotal.toFixed(2)}
-                </Button>
-                <Button
-                  onClick={() => handleConfirm(false)}
-                  disabled={loading}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Don't Deduct
-                </Button>
+            {availableBudget < 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900 mb-1">Current Deficit</p>
+                  <p className="text-sm text-red-700">
+                    Your budget is currently in deficit by {currency}{Math.abs(availableBudget).toFixed(2)}.
+                  </p>
+                </div>
               </div>
             )}
 
-            <Button
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-              variant="outline"
-              className="w-full"
-            >
-              Cancel
-            </Button>
+            {availableBudget >= 0 && !hasEnoughForMin && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold text-amber-900 mb-1">Insufficient Budget</p>
+                  <p className="text-sm text-amber-700">
+                    You&apos;re short by {currency}{(minTotal - availableBudget).toFixed(2)}. Deducting will result in a deficit.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Deduction Options */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-slate-700">
+                Budget Deduction Options:
+              </Label>
+              
+              <div className="space-y-2">
+                {/* Full Price Deduction */}
+                <div
+                  onClick={() => setDeductionMode('full')}
+                  className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                    deductionMode === 'full'
+                      ? 'border-green-500 bg-green-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        deductionMode === 'full' ? 'border-green-500' : 'border-slate-300'
+                      }`}>
+                        {deductionMode === 'full' && (
+                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">Deduct Full Price</p>
+                      <p className="text-sm text-slate-600">
+                        Deduct {currency}{minTotal.toFixed(2)} from budget
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Amount Deduction */}
+                <div
+                  onClick={() => setDeductionMode('custom')}
+                  className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                    deductionMode === 'custom'
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        deductionMode === 'custom' ? 'border-blue-500' : 'border-slate-300'
+                      }`}>
+                        {deductionMode === 'custom' && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <p className="font-medium text-slate-900">Deduct Custom Amount</p>
+                        <p className="text-sm text-slate-600">
+                          Specify a different amount to deduct
+                        </p>
+                      </div>
+                      {deductionMode === 'custom' && (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(e.target.value)}
+                          className="border-slate-300 focus:border-blue-400 focus:ring-blue-400"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* No Deduction */}
+                <div
+                  onClick={() => setDeductionMode('none')}
+                  className={`border-2 rounded-lg p-3 cursor-pointer transition-all ${
+                    deductionMode === 'none'
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        deductionMode === 'none' ? 'border-purple-500' : 'border-slate-300'
+                      }`}>
+                        {deductionMode === 'none' && (
+                          <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">Don&apos;t Deduct</p>
+                      <p className="text-sm text-slate-600">
+                        Mark as purchased without affecting budget
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview resulting budget */}
+              {deductionMode !== 'none' && (
+                <div className="bg-slate-100 rounded-lg p-3 border border-slate-200">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-600">Resulting Budget:</span>
+                    <span className={`font-bold ${resultingBudget >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {resultingBudget >= 0 ? '' : '-'}{currency}{Math.abs(resultingBudget).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={() => onOpenChange(false)}
+                disabled={loading}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirm}
+                disabled={loading || (deductionMode === 'custom' && (!customAmount || parseFloat(customAmount) <= 0))}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Confirm Purchase
+              </Button>
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
